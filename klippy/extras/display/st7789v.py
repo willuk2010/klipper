@@ -75,7 +75,7 @@ class DisplayBase:
         self.ui_height_chars = (
             ST7789V_ROWS - y2 - 2 * ST7789V_FONT_HEIGHT) // ST7789V_FONT_HEIGHT
         ui_border_x = (
-            ST7789V_COLS - self.ui_width_chars * ST7789V_FONT_WIDTH) / 2
+            ST7789V_COLS - self.ui_width_chars * ST7789V_FONT_WIDTH) // 2
         self.ui_top_left = (
             ui_border_x,
             ST7789V_ROWS - (self.ui_height_chars + 1) * ST7789V_FONT_HEIGHT)
@@ -96,7 +96,7 @@ class DisplayBase:
         return (self.ui_top_left[0] + c * ST7789V_FONT_WIDTH,
                 self.ui_top_left[1] + r * ST7789V_FONT_HEIGHT)
     def _rowmajor_bitmap_to_image(self, b, width=8):
-        return Image.frombytes('1', (width, len(b) / (width / 8)), b)
+        return Image.frombytes('1', (width, len(b) // (width // 8)), b)
     def rgb_to_565(self, rgb):
         r = rgb[0] >> 3 & 0x1f
         g = rgb[1] >> 2 & 0x3f
@@ -166,7 +166,7 @@ class DisplayBase:
                 # Convert the image to an array of bytes.
                 data = numpy.fromstring(strip.tobytes(), dtype=numpy.uint8)
                 # Convert from RGB888 (24-bit) to RGB565 (16-bit).
-                data565 = numpy.zeros((data.shape[0] / 3,), dtype=numpy.uint16)
+                data565 = numpy.zeros((data.shape[0] // 3,), dtype=numpy.uint16)
                 data565[:] += \
                     ((data[0::3] >> 3) & 0x1f).astype(numpy.uint16) << 11
                 data565[:] += \
@@ -176,7 +176,9 @@ class DisplayBase:
                 # Convert to big endian format if needed.
                 if sys.byteorder == 'little':
                     data565[:] = (data565[:] >> 8) + ((data565[:] & 0xff) << 8)
-                out = map(ord, data565.tobytes())
+                out = data565.tobytes()
+                if sys.version_info.major < 3:
+                    out = list(map(ord, out))
 
                 # Set the write window, then send the actual data.
                 self.cmd_raset(row, row + strip_height - 1)
@@ -226,7 +228,9 @@ class DisplayBase:
         if x + len(data) > width:
             data = data[:width - min(x, width)]
         for i, char in enumerate(data):
-            self.vram.paste(self.font[ord(char)], self.ui_c_r_to_x_y(x + i, y))
+            if sys.version_info.major < 3:
+                char = ord(char)
+            self.vram.paste(self.font[char], self.ui_c_r_to_x_y(x + i, y))
         self._invalidate(
             self.ui_c_r_to_x_y(x, y),
             (len(data) * ST7789V_FONT_WIDTH, ST7789V_FONT_HEIGHT))
@@ -273,10 +277,10 @@ class DisplayBase:
     def get_dimensions(self):
         return self.ui_width_chars, self.ui_height_chars
     def render_logo(self):
-        logo_width = ST7789V_COLS / 2
+        logo_width = ST7789V_COLS // 2
         if self.logo is None:
             self.logo = logo.make_logo(logo_width)
-        x_pos = (ST7789V_COLS - logo_width) / 2
+        x_pos = (ST7789V_COLS - logo_width) // 2
         y_pos = 0
         self.vram.paste(self.logo, box=(x_pos, y_pos), mask=self.logo)
         self._invalidate((x_pos, y_pos), self.logo.size)
